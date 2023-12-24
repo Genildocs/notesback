@@ -3,19 +3,7 @@ const app = express();
 app.use(express.json());
 const cors = require("cors");
 app.use(cors());
-const mongoose = require("mongoose");
-
-const url = `mongodb+srv://genildocs:${"123.Asd1820"}@cluster0.j2e6fqz.mongodb.net/noteApp?retryWrites=true&w=majority`;
-
-mongoose.set("strictQuery", false);
-mongoose.connect(url);
-
-const noteSchema = new mongoose.Schema({
-  content: String,
-  important: Boolean,
-});
-
-const Note = mongoose.model("Note", noteSchema);
+const Note = require("./models/note");
 
 let notes = [
   {
