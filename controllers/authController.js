@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const User = require('../models/userModel');
+const { promisify } = require('util');
 
 exports.userLogin = async (request, response) => {
   try {
@@ -25,7 +26,10 @@ exports.userLogin = async (request, response) => {
     response
       .status(200)
       .json({ message: 'user logged in', token, username: user.username });
-  } catch (error) {}
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erro ao realizar login' });
+  }
 };
 
 exports.userRegister = async (request, response, next) => {
@@ -48,4 +52,32 @@ exports.userRegister = async (request, response, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+exports.protectRouter = async (request, response, next) => {
+  //verificar se o token existe
+  let token;
+  if (
+    request.headers.authorization &&
+    request.headers.authorization.startsWith('Bearer ')
+  ) {
+    token = request.headers.authorization.split(' ')[1];
+  }
+
+  if (!token) {
+    return next(response.status(401).json({ message: 'not authorized' }));
+  }
+
+  //verificar se o token eh valido
+  const decodedToken = await promisify(jwt.verify)(token, process.env.SECRET);
+
+  //verificar se o usuario existe
+  const currentUser = await User.findById(decodedToken.id);
+
+  if (!currentUser) {
+    return next(response.status(401).json({ message: 'not authorized' }));
+  }
+
+  request.user = currentUser;
+  next();
 };

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const uniqueValidator = require('mongoose-unique-validator');
+const bcrypt = require('bcrypt');
 
 const userSchema = mongoose.Schema({
   username: {
@@ -19,6 +20,18 @@ const userSchema = mongoose.Schema({
   ],
 });
 
+userSchema.pre('save', async function (next) {
+  //condição caso a senha nao seja alterada
+  if (!this.isModified('password')) return next();
+
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
 userSchema.plugin(uniqueValidator);
 
 userSchema.set('toJSON', {
@@ -26,6 +39,7 @@ userSchema.set('toJSON', {
     returnedObject.id = returnedObject._id.toString();
     delete returnedObject._id;
     delete returnedObject.__v;
+    delete returnedObject.password;
   },
 });
 
