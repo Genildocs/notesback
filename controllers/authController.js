@@ -8,6 +8,7 @@ exports.userLogin = async (request, response) => {
     const { email, password } = request.body;
 
     const user = await User.findOne({ email });
+
     const passwordCorrect =
       user === null ? false : await bcrypt.compare(password, user.password);
 
@@ -57,9 +58,10 @@ exports.userRegister = async (request, response, next) => {
 exports.protectRouter = async (request, response, next) => {
   //verificar se o token existe
   let token;
+
   if (
     request.headers.authorization &&
-    request.headers.authorization.startsWith('Bearer ')
+    request.headers.authorization.startsWith('Bearer')
   ) {
     token = request.headers.authorization.split(' ')[1];
   }
@@ -72,7 +74,7 @@ exports.protectRouter = async (request, response, next) => {
   const decodedToken = await promisify(jwt.verify)(token, process.env.SECRET);
 
   //verificar se o usuario existe
-  const currentUser = await User.findById(decodedToken.id);
+  const currentUser = await User.findById(decodedToken.userId);
 
   if (!currentUser) {
     return next(response.status(401).json({ message: 'not authorized' }));
