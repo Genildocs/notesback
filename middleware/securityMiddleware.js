@@ -15,16 +15,16 @@ const limiter = rateLimit({
 const helmetConfig = helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'"],
-      imgSrc: ["'self'"],
-      connectSrc: ["'self'"]
+      defaultSrc: ["'self'", "*"],
+      scriptSrc: ["'self'", "*"],
+      styleSrc: ["'self'", "*"],
+      imgSrc: ["'self'", "*"],
+      connectSrc: ["'self'", "*"]
     }
   },
-  crossOriginEmbedderPolicy: true,
-  crossOriginOpenerPolicy: true,
-  crossOriginResourcePolicy: true,
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: false,
   dnsPrefetchControl: true,
   frameguard: true,
   hidePoweredBy: true,

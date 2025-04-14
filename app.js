@@ -4,6 +4,7 @@ const cors = require('cors');
 const authRoute = require('./routes/authRoutes');
 const userRoute = require('./routes/userRoutes');
 const todoRoute = require('./routes/todoRoutes');
+const adminRoute = require('./routes/adminRoutes');
 const middleware = require('./utils/middleware');
 const logger = require('./utils/logger');
 const mongoose = require('mongoose');
@@ -39,7 +40,12 @@ app.use(security.validatePayload);
 app.use('/api/auth', security.limiter);
 
 // Outros middlewares
-app.use(cors());
+app.use(cors({
+  origin: '*', // Permite requisições de qualquer origem
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
 app.use(express.static('build'));
 app.use(express.json());
 
@@ -51,6 +57,7 @@ app.use(middleware.requestLogger);
 app.use('/api/auth', authRoute);
 app.use('/api/users', userRoute);
 app.use('/api/todos', todoRoute);
+app.use('/admin', adminRoute);
 
 // Middleware de tratamento de erros
 app.use(errorHandler);
