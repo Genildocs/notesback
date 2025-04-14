@@ -1,91 +1,100 @@
 const Todo = require("../models/todoModel");
+const AppError = require("../utils/AppError");
 
 const getAllTodos = async (request, response) => {
   try {
-    const todos = await Todo.find({}).populate('user', { username: 1, name: 1 });
+    // Busca apenas os todos do usuário autenticado
+    const todos = await Todo.find({ user: request.user.id })
+      .populate('user', { username: 1, name: 1 });
     response.json(todos);
   } catch (error) {
-    response.status(500).json({ error: 'Erro ao buscar notas' });
+    throw new AppError('Erro ao buscar tarefas', 500);
   }
 };
 
 const createTodo = async (request, response) => {
   try {
-    const { content, important = false } = request.body;
+    const { title, priority, description, important, dueDate, tags } = request.body;
 
-    if (!content) {
-      return response.status(400).json({ error: 'Conteúdo da nota é obrigatório' });
+    if (!title || !description) {
+      throw new AppError('Título e descrição são obrigatórios', 400);
     }
 
     const todo = new Todo({
-      content,
+      title,
+      priority,
+      description,
       important,
-      user: request.user.id,
+      dueDate,
+      tags,
+      user: request.user.id // Associa o todo ao usuário autenticado
     });
 
     const savedTodo = await todo.save();
-    request.user.notes = request.user.notes.concat(savedTodo._id);
-    await request.user.save();
-
     response.status(201).json(savedTodo);
   } catch (error) {
-    response.status(500).json({ error: 'Erro ao criar nota' });
+    if (error instanceof AppError) throw error;
+    throw new AppError('Erro ao criar tarefa', 500);
   }
 };
 
 const getTodoById = async (request, response) => {
   try {
-    const todo = await Todo.findById(request.params.id);
+    const todo = await Todo.findOne({ 
+      _id: request.params.id,
+      user: request.user.id // Verifica se o todo pertence ao usuário
+    });
+
     if (!todo) {
-      return response.status(404).json({ error: 'Nota não encontrada' });
+      throw new AppError('Tarefa não encontrada', 404);
     }
+
     response.json(todo);
   } catch (error) {
-    response.status(500).json({ error: 'Erro ao buscar nota' });
+    if (error instanceof AppError) throw error;
+    throw new AppError('Erro ao buscar tarefa', 500);
   }
 };
 
 const deleteTodo = async (request, response) => {
   try {
-    const todo = await Todo.findById(request.params.id);
-    
+    const todo = await Todo.findOneAndDelete({ 
+      _id: request.params.id,
+      user: request.user.id // Verifica se o todo pertence ao usuário
+    });
+
     if (!todo) {
-      return response.status(404).json({ error: 'Nota não encontrada' });
+      throw new AppError('Tarefa não encontrada', 404);
     }
 
-    if (todo.user.toString() !== request.user.id) {
-      return response.status(403).json({ error: 'Não autorizado a deletar esta nota' });
-    }
-
-    await Todo.findByIdAndRemove(request.params.id);
     response.status(204).end();
   } catch (error) {
-    response.status(500).json({ error: 'Erro ao deletar nota' });
+    if (error instanceof AppError) throw error;
+    throw new AppError('Erro ao deletar tarefa', 500);
   }
 };
 
 const updateTodo = async (request, response) => {
   try {
-    const { content, important } = request.body;
-    const todo = await Todo.findById(request.params.id);
+    const { title, priority, description, important, done, dueDate, tags } = request.body;
 
-    if (!todo) {
-      return response.status(404).json({ error: 'Nota não encontrada' });
-    }
-
-    if (todo.user.toString() !== request.user.id) {
-      return response.status(403).json({ error: 'Não autorizado a atualizar esta nota' });
-    }
-
-    const updatedTodo = await Todo.findByIdAndUpdate(
-      request.params.id,
-      { content, important },
+    const todo = await Todo.findOneAndUpdate(
+      { 
+        _id: request.params.id,
+        user: request.user.id // Verifica se o todo pertence ao usuário
+      },
+      { title, priority, description, important, done, dueDate, tags },
       { new: true, runValidators: true }
     );
 
-    response.json(updatedTodo);
+    if (!todo) {
+      throw new AppError('Tarefa não encontrada', 404);
+    }
+
+    response.json(todo);
   } catch (error) {
-    response.status(500).json({ error: 'Erro ao atualizar nota' });
+    if (error instanceof AppError) throw error;
+    throw new AppError('Erro ao atualizar tarefa', 500);
   }
 };
 
