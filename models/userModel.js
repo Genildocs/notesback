@@ -2,6 +2,33 @@ const mongoose = require('mongoose');
 const uniqueValidator = require('mongoose-unique-validator');
 const bcrypt = require('bcrypt');
 
+// Função para validar força da senha
+const passwordValidator = (password) => {
+  const minLength = 8;
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+  if (password.length < minLength) {
+    return false;
+  }
+  if (!hasUpperCase) {
+    return false;
+  }
+  if (!hasLowerCase) {
+    return false;
+  }
+  if (!hasNumbers) {
+    return false;
+  }
+  if (!hasSpecialChar) {
+    return false;
+  }
+
+  return true;
+};
+
 const userSchema = mongoose.Schema({
   username: {
     type: String,
@@ -27,8 +54,11 @@ const userSchema = mongoose.Schema({
   },
   password: { 
     type: String, 
-    required: [true, 'Senha é obrigatória'], 
-    minlength: [8, 'Senha deve ter no mínimo 8 caracteres'],
+    required: [true, 'Senha é obrigatória'],
+    validate: {
+      validator: passwordValidator,
+      message: 'A senha deve ter no mínimo 8 caracteres, incluindo letras maiúsculas, minúsculas, números e caracteres especiais'
+    },
     select: false // Não retorna a senha em consultas por padrão
   },
   role: {
@@ -41,6 +71,14 @@ const userSchema = mongoose.Schema({
     default: true
   },
   lastLogin: {
+    type: Date,
+    default: null
+  },
+  loginAttempts: {
+    type: Number,
+    default: 0
+  },
+  lockUntil: {
     type: Date,
     default: null
   },
@@ -88,6 +126,28 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   }
 };
 
+// Método para incrementar tentativas de login
+userSchema.methods.incrementLoginAttempts = async function() {
+  if (this.lockUntil && this.lockUntil > Date.now()) {
+    throw new Error('Conta bloqueada. Tente novamente mais tarde.');
+  }
+
+  this.loginAttempts += 1;
+  
+  if (this.loginAttempts >= 5) {
+    this.lockUntil = Date.now() + 15 * 60 * 1000; // Bloqueia por 15 minutos
+  }
+  
+  await this.save();
+};
+
+// Método para resetar tentativas de login
+userSchema.methods.resetLoginAttempts = async function() {
+  this.loginAttempts = 0;
+  this.lockUntil = null;
+  await this.save();
+};
+
 // Plugin para validação de campos únicos
 userSchema.plugin(uniqueValidator, { 
   message: 'O {PATH} {VALUE} já está em uso' 
@@ -100,6 +160,8 @@ userSchema.set('toJSON', {
     delete returnedObject._id;
     delete returnedObject.__v;
     delete returnedObject.password;
+    delete returnedObject.loginAttempts;
+    delete returnedObject.lockUntil;
   }
 });
 

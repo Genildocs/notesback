@@ -1,137 +1,141 @@
 const User = require('../models/userModel');
+const AppError = require('../utils/AppError');
 
-// Obter todos os usuários
-exports.getAllUsers = async (req, res) => {
+// Rotas protegidas
+exports.getMe = async (req, res, next) => {
   try {
-    const users = await User.find().select('-password');
+    const user = await User.findById(req.user.id);
+    
     res.status(200).json({
-      users,
-      valid: true
+      status: 'success',
+      data: {
+        user
+      }
     });
   } catch (error) {
-    res.status(500).json({
-      message: 'Erro ao buscar usuários',
-      error: error.message
-    });
+    next(error);
   }
 };
 
-// Obter usuário logado
-exports.getLoggedUser = async (request, response) => {
+exports.updateMe = async (req, res, next) => {
   try {
-    const user = await User.findById(request.user.id);
-    if (!user) {
-      return response.status(404).json({ 
-        message: 'Usuário não encontrado',
-        valid: false 
-      });
+    // 1) Criar erro se usuário tentar atualizar senha
+    if (req.body.password) {
+      return next(new AppError('Esta rota não é para atualizar senha. Por favor, use /updatePassword', 400));
     }
 
-    response.status(200).json({
-      user,
-      valid: true
+    // 2) Atualizar documento
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        username: req.body.username,
+        email: req.body.email
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        user
+      }
     });
   } catch (error) {
-    response.status(500).json({
-      message: 'Erro ao buscar usuário',
-      error: error.message,
-      valid: false
-    });
+    next(error);
   }
 };
 
-// Obter usuário por ID
-exports.getUserById = async (request, response) => {
+exports.deleteMe = async (req, res, next) => {
   try {
-    const user = await User.findById(request.params.id).select('-password');
-    if (!user) {
-      return response.status(404).json({ 
-        message: 'Usuário não encontrado',
-        valid: false 
-      });
-    }
+    await User.findByIdAndUpdate(req.user.id, { active: false });
 
-    response.status(200).json({
-      user,
-      valid: true
+    res.status(204).json({
+      status: 'success',
+      data: null
     });
   } catch (error) {
-    response.status(500).json({
-      message: 'Erro ao buscar usuário',
-      error: error.message,
-      valid: false
-    });
+    next(error);
   }
 };
 
-// Atualizar usuário
-exports.updateUser = async (request, response) => {
+// Rotas de administrador
+exports.getAllUsers = async (req, res, next) => {
   try {
-    const { username, email } = request.body;
-    const user = await User.findById(request.params.id);
+    const users = await User.find();
 
-    if (!user) {
-      return response.status(404).json({ 
-        message: 'Usuário não encontrado',
-        valid: false 
-      });
-    }
-
-    // Verifica se o usuário está tentando atualizar seu próprio perfil
-    if (user._id.toString() !== request.user.id) {
-      return response.status(403).json({ 
-        message: 'Não autorizado a atualizar este usuário',
-        valid: false 
-      });
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(
-      request.params.id,
-      { username, email },
-      { new: true, runValidators: true }
-    ).select('-password');
-
-    response.status(200).json({
-      user: updatedUser,
-      message: 'Usuário atualizado com sucesso',
-      valid: true
+    res.status(200).json({
+      status: 'success',
+      results: users.length,
+      data: {
+        users
+      }
     });
   } catch (error) {
-    response.status(500).json({
-      message: 'Erro ao atualizar usuário',
-      error: error.message,
-      valid: false
-    });
+    next(error);
   }
 };
 
-// Deletar usuário
-exports.deleteUser = async (request, response) => {
+exports.getUser = async (req, res, next) => {
   try {
-    const user = await User.findById(request.params.id);
+    const user = await User.findById(req.params.id);
 
     if (!user) {
-      return response.status(404).json({ 
-        message: 'Usuário não encontrado',
-        valid: false 
-      });
+      return next(new AppError('Nenhum usuário encontrado com este ID', 404));
     }
 
-    // Verifica se o usuário está tentando deletar seu próprio perfil
-    if (user._id.toString() !== request.user.id) {
-      return response.status(403).json({ 
-        message: 'Não autorizado a deletar este usuário',
-        valid: false 
-      });
-    }
-
-    await User.findByIdAndRemove(request.params.id);
-    response.status(204).end();
-  } catch (error) {
-    response.status(500).json({
-      message: 'Erro ao deletar usuário',
-      error: error.message,
-      valid: false
+    res.status(200).json({
+      status: 'success',
+      data: {
+        user
+      }
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateUser = async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!user) {
+      return next(new AppError('Nenhum usuário encontrado com este ID', 404));
+    }
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        user
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteUser = async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+
+    if (!user) {
+      return next(new AppError('Nenhum usuário encontrado com este ID', 404));
+    }
+
+    res.status(204).json({
+      status: 'success',
+      data: null
+    });
+  } catch (error) {
+    next(error);
   }
 };

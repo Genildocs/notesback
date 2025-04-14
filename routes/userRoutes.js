@@ -1,23 +1,135 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-const authController = require('../controllers/authController');
+const authMiddleware = require('../middleware/authMiddleware');
 
-// Middleware para todas as rotas
-router.use(authController.isAuth);
+// Todas as rotas abaixo requerem autenticação
+router.use(authMiddleware.isAuth);
 
-// Rota base para operações em lote (apenas admin)
-router.route('/')
-  .get(authController.isAdmin, userController.getAllUsers);    // GET /api/v1/users - Lista todos os usuários (admin)
+/**
+ * @api {get} /api/users/me Obter dados do usuário logado
+ * @apiName GetMe
+ * @apiGroup User
+ * @apiVersion 1.0.0
+ * 
+ * @apiHeader {String} Authorization Token JWT
+ * 
+ * @apiSuccess {Object} user Dados do usuário
+ * @apiSuccess {String} user.id ID do usuário
+ * @apiSuccess {String} user.username Nome de usuário
+ * @apiSuccess {String} user.email Email do usuário
+ * @apiSuccess {String} user.role Role do usuário
+ * 
+ * @apiError {Object} error Objeto de erro
+ * @apiError {String} error.message Mensagem de erro
+ */
+router.get('/me', userController.getMe);
 
-// Rota para usuário logado
-router.get('/me', userController.getLoggedUser);  // GET /api/v1/users/me - Obtém dados do usuário logado
+/**
+ * @api {patch} /api/users/updateMe Atualizar dados do usuário logado
+ * @apiName UpdateMe
+ * @apiGroup User
+ * @apiVersion 1.0.0
+ * 
+ * @apiHeader {String} Authorization Token JWT
+ * 
+ * @apiParam {String} [username] Novo nome de usuário
+ * @apiParam {String} [email] Novo email
+ * 
+ * @apiSuccess {Object} user Dados atualizados do usuário
+ * 
+ * @apiError {Object} error Objeto de erro
+ * @apiError {String} error.message Mensagem de erro
+ */
+router.patch('/updateMe', userController.updateMe);
 
-// Rotas para operações em um usuário específico
-router.route('/:id')
-  .get(userController.getUserById)     // GET /api/v1/users/:id - Busca um usuário específico
-  .put(userController.updateUser)      // PUT /api/v1/users/:id - Atualiza um usuário
-  .delete(userController.deleteUser);  // DELETE /api/v1/users/:id - Remove um usuário
+/**
+ * @api {delete} /api/users/deleteMe Deletar conta do usuário logado
+ * @apiName DeleteMe
+ * @apiGroup User
+ * @apiVersion 1.0.0
+ * 
+ * @apiHeader {String} Authorization Token JWT
+ * 
+ * @apiSuccess {String} status Status da operação
+ * 
+ * @apiError {Object} error Objeto de erro
+ * @apiError {String} error.message Mensagem de erro
+ */
+router.delete('/deleteMe', userController.deleteMe);
+
+// Rotas apenas para administradores
+router.use(authMiddleware.restrictTo('admin'));
+
+/**
+ * @api {get} /api/users Listar todos os usuários
+ * @apiName GetAllUsers
+ * @apiGroup Admin
+ * @apiVersion 1.0.0
+ * 
+ * @apiHeader {String} Authorization Token JWT
+ * 
+ * @apiSuccess {Array} users Lista de usuários
+ * @apiSuccess {Number} results Número total de usuários
+ * 
+ * @apiError {Object} error Objeto de erro
+ * @apiError {String} error.message Mensagem de erro
+ */
+router.get('/', userController.getAllUsers);
+
+/**
+ * @api {get} /api/users/:id Obter usuário específico
+ * @apiName GetUser
+ * @apiGroup Admin
+ * @apiVersion 1.0.0
+ * 
+ * @apiHeader {String} Authorization Token JWT
+ * 
+ * @apiParam {String} id ID do usuário
+ * 
+ * @apiSuccess {Object} user Dados do usuário
+ * 
+ * @apiError {Object} error Objeto de erro
+ * @apiError {String} error.message Mensagem de erro
+ */
+router.get('/:id', userController.getUser);
+
+/**
+ * @api {patch} /api/users/:id Atualizar usuário específico
+ * @apiName UpdateUser
+ * @apiGroup Admin
+ * @apiVersion 1.0.0
+ * 
+ * @apiHeader {String} Authorization Token JWT
+ * 
+ * @apiParam {String} id ID do usuário
+ * @apiParam {String} [username] Novo nome de usuário
+ * @apiParam {String} [email] Novo email
+ * @apiParam {String} [role] Nova role (user/admin)
+ * 
+ * @apiSuccess {Object} user Dados atualizados do usuário
+ * 
+ * @apiError {Object} error Objeto de erro
+ * @apiError {String} error.message Mensagem de erro
+ */
+router.patch('/:id', userController.updateUser);
+
+/**
+ * @api {delete} /api/users/:id Deletar usuário específico
+ * @apiName DeleteUser
+ * @apiGroup Admin
+ * @apiVersion 1.0.0
+ * 
+ * @apiHeader {String} Authorization Token JWT
+ * 
+ * @apiParam {String} id ID do usuário
+ * 
+ * @apiSuccess {String} status Status da operação
+ * 
+ * @apiError {Object} error Objeto de erro
+ * @apiError {String} error.message Mensagem de erro
+ */
+router.delete('/:id', userController.deleteUser);
 
 // Middleware para rotas não encontradas
 router.use((req, res) => {

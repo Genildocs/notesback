@@ -3,56 +3,117 @@ const bcrypt = require('bcrypt');
 const User = require('../models/userModel');
 const { promisify } = require('util');
 const Joi = require('joi');
+const AppError = require('../utils/AppError');
 
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
 });
 
-exports.userLogin = async (request, response) => {
+exports.userLogin = async (request, response, next) => {
   try {
     const { email, password } = await loginSchema.validateAsync(request.body);
 
-    const user = await User.findOne({ email });
+    // Busca usuário e inclui campos sensíveis
+    const user = await User.findOne({ email }).select('+password +loginAttempts +lockUntil');
 
-    const passwordCorrect =
-      user === null ? false : await bcrypt.compare(password, user.password);
-
-    if (!(user && passwordCorrect)) {
-      return response.status(401).json({
-        error: 'invalid username or password',
-      });
+    if (!user) {
+      return next(new AppError('Email ou senha inválidos', 401));
     }
 
+    // Verifica se a conta está bloqueada
+    if (user.lockUntil && user.lockUntil > Date.now()) {
+      const timeLeft = Math.ceil((user.lockUntil - Date.now()) / 1000 / 60);
+      return next(new AppError(`Conta bloqueada. Tente novamente em ${timeLeft} minutos.`, 401));
+    }
+
+    // Verifica senha
+    if (!(await user.comparePassword(password))) {
+      await user.incrementLoginAttempts();
+      return next(new AppError('Email ou senha inválidos', 401));
+    }
+
+    // Reset das tentativas de login em caso de sucesso
+    await user.resetLoginAttempts();
+
+    // Atualiza último login
+    user.lastLogin = Date.now();
+    await user.save();
+
+    // Gera token
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { 
+        id: user._id, 
+        email: user.email,
+        role: user.role 
+      },
       process.env.SECRET,
       { expiresIn: '12h' }
     );
 
-    response
-      .status(200)
-      .json({ message: 'user logged in', token, username: user.username });
+    response.status(200).json({ 
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      }
+    });
   } catch (error) {
     if (error.isJoi) {
-      return response.status(400).json({ error: error.message });
+      return next(new AppError(error.message, 400));
     }
-    response.status(500).json({ message: 'Access denied' });
+    next(error);
   }
 };
 
 exports.userRegister = async (request, response, next) => {
   try {
     const { email, username, password } = request.body;
+    
+    // Verificar se email já existe
     const existingEmail = await User.findOne({ email });
     if (existingEmail) {
-      return response.status(400).json({
-        error: 'email already in use',
-      });
+      return next(new AppError('Email já está em uso', 400));
     }
-    const user = new User({ email, username, password });
+
+    // Verificar se username já existe
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) {
+      return next(new AppError('Nome de usuário já está em uso', 400));
+    }
+
+    // Criar novo usuário com role padrão 'user'
+    const user = new User({ 
+      email, 
+      username, 
+      password,
+      role: 'user' // Role padrão
+    });
+
     await user.save();
-    response.status(201).json({ message: 'user created' });
+
+    // Gerar token para o novo usuário
+    const token = jwt.sign(
+      { 
+        id: user._id, 
+        email: user.email,
+        role: user.role 
+      },
+      process.env.SECRET,
+      { expiresIn: '12h' }
+    );
+
+    response.status(201).json({ 
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      }
+    });
   } catch (error) {
     next(error);
   }

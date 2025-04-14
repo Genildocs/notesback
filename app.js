@@ -8,6 +8,7 @@ const middleware = require('./utils/middleware');
 const logger = require('./utils/logger');
 const mongoose = require('mongoose');
 const errorHandler = require('./middleware/errorHandler');
+const security = require('./middleware/securityMiddleware');
 
 // Configuração do MongoDB
 mongoose.set('strictQuery', false);
@@ -25,6 +26,19 @@ mongoose
 
 // Middlewares globais
 const app = express();
+
+// Segurança
+app.use(security.helmetConfig);
+app.use(security.xss());
+app.use(security.mongoSanitize());
+app.use(security.hpp());
+app.use(security.sanitizeInput);
+app.use(security.validatePayload);
+
+// Rate limiting para rotas de autenticação
+app.use('/api/auth', security.limiter);
+
+// Outros middlewares
 app.use(cors());
 app.use(express.static('build'));
 app.use(express.json());
@@ -34,9 +48,9 @@ app.use(middleware.validateJSON);
 app.use(middleware.requestLogger);
 
 // Rotas da API
-app.use('/api/v1', authRoute);
-app.use('/api/v1', userRoute);
-app.use('/api/v1', todoRoute);
+app.use('/api/auth', authRoute);
+app.use('/api/users', userRoute);
+app.use('/api/todos', todoRoute);
 
 // Middleware de tratamento de erros
 app.use(errorHandler);
@@ -45,13 +59,15 @@ app.use(errorHandler);
 app.use(middleware.unknownEndpoint);
 
 // Tratamento de erros não capturados
-process.on('uncaughtException', (error) => {
-  logger.error('Erro não capturado:', error);
+process.on('uncaughtException', (err) => {
+  logger.error('UNCAUGHT EXCEPTION! 💥 Shutting down...');
+  logger.error(err.name, err.message);
   process.exit(1);
 });
 
-process.on('unhandledRejection', (error) => {
-  logger.error('Promessa rejeitada não tratada:', error);
+process.on('unhandledRejection', (err) => {
+  logger.error('UNHANDLED REJECTION! 💥 Shutting down...');
+  logger.error(err.name, err.message);
   process.exit(1);
 });
 
