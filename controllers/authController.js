@@ -58,7 +58,8 @@ exports.userLogin = async (request, response, next) => {
         username: user.username,
         email: user.email,
         role: user.role
-      }
+      },
+      valid: true
     });
   } catch (error) {
     if (error.isJoi) {
@@ -112,7 +113,8 @@ exports.userRegister = async (request, response, next) => {
         username: user.username,
         email: user.email,
         role: user.role
-      }
+      },
+      valid: true
     });
   } catch (error) {
     next(error);

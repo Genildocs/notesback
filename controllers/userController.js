@@ -10,7 +10,8 @@ exports.getMe = async (req, res, next) => {
       status: 'success',
       data: {
         user
-      }
+      },
+      valid: true
     });
   } catch (error) {
     next(error);
